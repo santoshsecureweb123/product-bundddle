@@ -170,7 +170,7 @@ class WC_PB_Cart {
 
 		$bundle        = wc_get_product( $product_id );
 		$added_to_cart = false;
-
+		print_r("HERE");exit;
 		if ( $bundle ) {
 
 			if ( $this->validate_bundle_configuration( $bundle, $quantity, $configuration ) ) {
@@ -329,22 +329,68 @@ class WC_PB_Cart {
 								continue;
 							}
 
+							$checkbox =  array();
+
+
+
 							$attribute_name = $attribute->get_name();
 							$taxonomy       = wc_variation_attribute_name( $attribute_name );
 
 							$bundled_item_taxonomy_request_key = $posted_field_prefix . 'bundle_' . $taxonomy . '_' . $bundled_item_id;
+						
+							$bundled_item_taxonomy_request_key_custom =  $posted_field_prefix . 'bundle_quantity_' . $bundled_item_id;
+
+							if ( $attribute->is_taxonomy() ) {
+
+								// foreach ( $attribute->get_terms() as $option ) {
+
+									foreach ($variations as $varientID) {
+
+										$variationId = $varientID;
+										$variation = new WC_Product_Variation($variationId);
+										$variationName = implode(" / ", $variation->get_variation_attributes());
+ 									
+ 										$bundled_item_taxonomy_request_key_custom.'_'.$variationName.'_'.$varientID;
+
+										if($posted_data[$bundled_item_taxonomy_request_key_custom.'_'.$variationName.'_'.$varientID]){
+											
+											
+											$postdatamultiple = $bundled_item_taxonomy_request_key_custom.'_'.$variationName.'_'.$varientID;
+
+											$attribute_data = explode("_",$postdatamultiple);
+											// print_r($attribute_data);
+											
+											$posted_config[ $bundled_item_id ][] = array(
+												'product_id'	=> $product_id,
+												'quantity'		=> $posted_data[$postdatamultiple],
+												'attributes'	=> array(
+																				$taxonomy => $attribute_data[3],
+																			),
+												'variation_id'=> $attribute_data[4],
+												'discount'=> '',
+											);
+										
+										}
+										
+									}
+								
+								
+								}
+							 $bundled_item_variation_id_request_key = $posted_field_prefix . 'bundle_variation_id_' . $bundled_item_id;
+
+							// }
+							 // print_r($posted_config); // exit;
 
 							// Get value from post data.
 							if ( isset( $posted_data[ $bundled_item_taxonomy_request_key ] ) && '' !== $posted_data[ $bundled_item_taxonomy_request_key ] ) {
 
 								if ( $attribute->is_taxonomy() ) {
-									$value = sanitize_title( stripslashes( $posted_data[ $bundled_item_taxonomy_request_key ] ) );
+										$value = sanitize_title( stripslashes( $posted_data[ $bundled_item_taxonomy_request_key ] ) );
 								} else {
 									$value = html_entity_decode( wc_clean( stripslashes( $posted_data[ $bundled_item_taxonomy_request_key ] ) ), ENT_QUOTES, get_bloginfo( 'charset' ) );
 								}
 
 								$attr_stamp[ $taxonomy ] = $value;
-
 							// Value pre-selected?
 							} else {
 
@@ -385,6 +431,7 @@ class WC_PB_Cart {
 
 						$posted_config[ $bundled_item_id ][ 'attributes' ] = $attr_stamp;
 
+			
 						// Store posted variation ID, or search for it.
 						if ( sizeof( $variations ) > 1 ) {
 
@@ -413,7 +460,7 @@ class WC_PB_Cart {
 		}
 
 		$posted_config = $this->parse_bundle_configuration( $product, $posted_config, true );
-
+		// echo"FAAFA";print_r($posted_config);exit;
 		return $posted_config;
 	}
 
@@ -1358,6 +1405,14 @@ class WC_PB_Cart {
 	 */
 	public function bundle_add_to_cart( $bundle_cart_key, $bundle_id, $bundle_quantity, $variation_id, $variation, $cart_item_data ) {
 
+	
+		// echo "bundle_cart_key"; print_r($bundle_cart_key);echo "<br>";
+		// echo "bundle_id"; print_r($bundle_id);echo "<br>";
+		// echo "bundle_quantity"; print_r($bundle_quantity);echo "<br>";
+		// echo "variation_id"; print_r($variation_id);echo "<br>";
+		// echo "variation"; print_r($variation);echo "<br>";
+		// echo "cart_item_data"; print_r($cart_item_data);echo "<br>";exit;
+
 		if ( ! $this->is_cart_session_loaded() ) {
 			return;
 		}
@@ -1378,7 +1433,100 @@ class WC_PB_Cart {
 			// Now add all items - yay.
 			foreach ( $cart_item_data[ 'stamp' ] as $bundled_item_id => $bundled_item_stamp ) {
 
-				if ( ! $bundle->has_bundled_item( $bundled_item_id ) ) {
+				if($bundled_item_stamp[0]){
+					
+						unset($bundled_item_stamp['product_id']);
+						unset($bundled_item_stamp['quantity']);
+						unset($bundled_item_stamp['attributes']);
+						unset($bundled_item_stamp['variation_id']);
+						unset($bundled_item_stamp['discount']);
+
+						foreach ($bundled_item_stamp as $key => $value) {
+
+							if ( ! $bundle->has_bundled_item( $bundled_item_id ) ) {
+									throw new Exception( sprintf( __( 'The requested configuration of &quot;%s&quot; cannot be purchased at the moment.', 'woocommerce-product-bundles' ), $bundle->get_title() ) );
+								return false;
+							}
+
+							$bundled_item           = $bundle->get_bundled_item( $bundled_item_id );
+							$bundled_item_cart_data = $bundled_items_cart_data;
+
+							if ( isset( $value[ 'optional_selected' ] ) && 'no' === $value[ 'optional_selected' ] ) {
+								continue;
+							}
+
+							if ( isset( $value[ 'quantity' ] ) && absint( $value[ 'quantity' ] ) === 0 ) {
+								continue;
+							}
+
+							$bundled_item_cart_data[ 'bundled_item_id' ] = $bundled_item_id;
+
+							$item_quantity = isset( $value[ 'quantity' ] ) ? absint( $value[ 'quantity' ] ) : $bundled_item->get_quantity( 'default' );
+							$quantity      = $bundled_item->is_sold_individually() ? 1 : $item_quantity * $bundle_quantity;
+							$product       = $bundled_item->get_product();
+							$product_id    = $bundled_item->get_product_id();
+
+							if ( $product->is_type( array( 'simple', 'subscription' ) ) ) {
+
+								$variation_id = '';
+								$variations   = array();
+
+							} elseif ( $product->is_type( array( 'variable', 'variable-subscription' ) ) ) {
+
+								if ( isset( $value[ 'variation_id' ] ) && isset( $value[ 'attributes' ] ) ) {
+									$variation_id = $value[ 'variation_id' ];
+									$variations   = $value[ 'attributes' ];
+								} else {
+									throw new Exception( sprintf( __( 'The requested configuration of &quot;%s&quot; cannot be purchased at the moment.', 'woocommerce-product-bundles' ), $bundle->get_title() ) );
+									return false;
+								}
+							}
+
+							/**
+							 * 'woocommerce_bundled_item_cart_data' filter.
+							 *
+							 * An opportunity to copy/load child cart item data from the parent cart item data array.
+							 *
+							 * @param  array  $bundled_item_cart_data
+							 * @param  array  $cart_item_data
+							 */
+							$bundled_item_cart_data = apply_filters( 'woocommerce_bundled_item_cart_data', $bundled_item_cart_data, $cart_item_data );
+
+							/**
+							 * 'woocommerce_bundled_item_before_add_to_cart' action.
+							 *
+							 * @param  int    $product_id
+							 * @param  int    $quantity
+							 * @param  int    $variation_id
+							 * @param  array  $variations
+							 * @param  array  $bundled_item_cart_data
+							 */
+							do_action( 'woocommerce_bundled_item_before_add_to_cart', $product_id, $quantity, $variation_id, $variations, $bundled_item_cart_data );
+
+							// Add to cart.
+							$bundled_item_cart_key = $this->bundled_add_to_cart( $bundle_id, $product, $quantity, $variation_id, $variations, $bundled_item_cart_data );
+
+							if ( $bundled_item_cart_key && ! in_array( $bundled_item_cart_key, WC()->cart->cart_contents[ $bundle_cart_key ][ 'bundled_items' ] ) ) {
+								WC()->cart->cart_contents[ $bundle_cart_key ][ 'bundled_items' ][] = $bundled_item_cart_key;
+							}
+
+							/**
+							 * 'woocommerce_bundled_item_before_add_to_cart' action.
+							 *
+							 * @param  int    $product_id
+							 * @param  int    $quantity
+							 * @param  int    $variation_id
+							 * @param  array  $variations
+							 * @param  array  $bundled_item_cart_data
+							 */
+							do_action( 'woocommerce_bundled_item_after_add_to_cart', $product_id, $quantity, $variation_id, $variations, $bundled_item_cart_data );
+					
+
+					}
+
+				}else{
+
+					if ( ! $bundle->has_bundled_item( $bundled_item_id ) ) {
 					throw new Exception( sprintf( __( 'The requested configuration of &quot;%s&quot; cannot be purchased at the moment.', 'woocommerce-product-bundles' ), $bundle->get_title() ) );
 					return false;
 				}
@@ -1456,6 +1604,15 @@ class WC_PB_Cart {
 				 */
 				do_action( 'woocommerce_bundled_item_after_add_to_cart', $product_id, $quantity, $variation_id, $variations, $bundled_item_cart_data );
 			}
+
+				
+
+
+
+
+				}
+
+
 		}
 	}
 
@@ -1595,6 +1752,9 @@ class WC_PB_Cart {
 	 * @return void
 	 */
 	public function update_quantity_in_cart( $cart_item_key, $quantity = 0 ) {
+
+
+
 
 		if ( ! empty( WC()->cart->cart_contents[ $cart_item_key ] ) ) {
 

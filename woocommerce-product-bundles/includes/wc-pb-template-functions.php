@@ -673,10 +673,18 @@ function wc_pb_template_bundled_variation_attribute_options( $args ) {
 	$bundled_item                = $args[ 'bundled_item' ];
 	$variation_attribute_name    = $args[ 'attribute' ];
 	$variation_attribute_options = $args[ 'options' ];
+	$attribute             = $args['attribute'];
+	// exit;
 
-// echo "<pre>";
-// 			print_r($bundled_item);
-// 			exit;
+	$varientData = $bundled_item->get_product_variations();
+
+	$varient_id = array();
+
+	foreach ($varientData as $value) {
+		$varient_id[$value['attributes']['attribute_'.$attribute]] =  $value['variation_id'];
+
+	}
+
 
 	/** Documented in 'WC_PB_Cart::get_posted_bundle_configuration'. */
 	$bundle_fields_prefix = apply_filters( 'woocommerce_product_bundle_field_prefix', '', $bundled_item->get_bundle_id() );
@@ -737,7 +745,8 @@ function wc_pb_template_bundled_variation_attribute_options( $args ) {
 
 		// Get the dropdowns markup.
 		ob_start();
-		wc_dropdown_variation_attribute_options( $args );
+		wc_multipe_qty_variation_attribute_options( $args,$bundled_item->get_id(),$varient_id );
+		wc_dropdown_variation_attribute_options( $args,$bundled_item->get_id(),$varient_id );
 		$attribute_options = ob_get_clean();
 
 		// Add the dropdown (hidden).
@@ -746,15 +755,16 @@ function wc_pb_template_bundled_variation_attribute_options( $args ) {
 	} else {
 
 
-// echo "<pre>";
-		// Get the dropdowns markup.
-		// print_r( $args);
+		
 		ob_start();
-		wc_dropdown_variation_attribute_options( $args );
+		wc_multipe_qty_variation_attribute_options( $args,$bundled_item->get_id(),$varient_id );
+		wc_dropdown_variation_attribute_options( $args,$bundled_item->get_id(),$varient_id );
 		$attribute_options = ob_get_clean();
 
 		// Just render the dropdown.
 		$html .= $attribute_options;
+
+
 	}
 
 	if ( sizeof( $configurable_variation_attributes ) === sizeof( $variation_attributes ) ) {
